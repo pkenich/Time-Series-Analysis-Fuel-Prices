@@ -1,0 +1,300 @@
+---
+title: "MTH6139 Time Series"
+author:
+- name: Kenich Pandeya
+date: "13 March 2024"
+output:
+  html_document:
+    toc: yes
+    toc_float: yes
+  word_document:
+    toc: yes
+  pdf_document:
+    toc: yes
+subtitle: Analysing Petrol Prices Over Time in the UK
+editor_options:
+  markdown:
+    wrap: 72
+---
+
+```{r, echo=FALSE}
+htmltools::img(src = knitr::image_uri("QMlogo.png"), 
+               alt = 'logo', 
+               style = 'position:absolute; top:0; right:0; padding:10px; width:30%;')
+```
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+![](images/Screenshot 2024-03-17 144843.png){width="276"}
+
+# Analysing Petrol Prices in the UK Over Time Using Prophet
+
+This project explores Petrol price dynamics using time series analysis
+techniques. The data used for this analysis is downloaded from [UK's
+Government Data
+Page](https://www.gov.uk/government/statistics/weekly-road-fuel-prices)
+and I will be using the price of Unleaded Petrol for my analysis. I,
+then extracted data for Petrol in another file and saved it as a csv
+file. The petrol prices in this data is based on the average UK pump
+prices from six companies and recorded weekly. This data starts from
+June 2003. The prices in the data set is in terms of pence. (£1=100p)
+
+## Objective of this project
+
+By analysing this dataset, the main objective of this project is to seek
+to understand the patterns and trends of Petrol prices in the UK over
+time, and ultimately to forecast the price of Petrol in the UK next
+year. I will be using Meta's Prophet library to model the data.
+
+## 1.Setting up the Data
+
+In this chapter, we will deal with setting up the library, loading the
+data into R, and for defining our dataframe.
+
+### 1.1 Set up the library
+
+I would like to first load the prophet in my library. To load it a
+simple R-code has been written down:
+
+```{r}
+library(prophet)
+```
+
+Prophet is a forecasting tool developed by Meta, which is designed to
+simplify time series forecasting tasks. This will help us in analysing
+the components of the price of Petrol over time and also forecast the
+future prices .
+
+### 1.2 Loading the data into the R
+
+Now, we try to load the data in the system.
+
+```{r}
+fuel_data<-read.csv("C:/Users/pkeni/OneDrive - Queen Mary, University of London/Petrol Price UK .csv")
+```
+
+Now that I have loaded the data into R my next step would be converting
+it into dataframe of prices and volumes. I am making sure that the data
+reads through so I have converted them into Date and numeric form so
+that prophet is able to fit it. Initially, I will also look at weekly
+seasonality of the data as I want to identify recurring patterns to
+exhibit distinct petrol price movements. Also, as the prices are
+recorded on a weekly basis, I believe weekly seasonality would work the
+best in this terms.
+
+```{r}
+fuel_data$date<-as.Date(fuel_data$Date)
+fuel_data$Price<-as.numeric(fuel_data$Price)
+petrol_price <-data.frame(
+  ds=zoo::as.Date(fuel_data$Date),
+  y=fuel_data$Price)
+
+```
+
+## 2. Historic Data Analysis
+
+In this chapter, we look at the historic data and analyse it.
+
+### 2.1 Visualising the Petrol Price Data
+
+In this section, I will simply just plot the petrol price solely based
+in its historic price.
+
+```{r}
+plot(petrol_price$ds,petrol_price$y, main="Petrol Prices over year from 2003 to 2024", xlab="Year",ylab="Petrol Prices (p per litre) ",type="l")
+```
+
+The historical data suggests that the petrol prices show a rising trend
+throughout the years with significant volatility. It shows a notably
+sharp rise and fall of prices between 2020 and 2025, which shows
+significant volatility in recent years.
+
+### 2.2 Decomposing the Time Series Data
+
+Now to further examine the time series, we tend to decompose the data.
+As the data was loaded manually in R, I had some problem in decomposing
+it to look at the trend, seasonality, cyclic patterns and residual noise
+in the data. So, to decompose the data, I first convert it into a Time
+Series Using function **ts()**. As I know that the original data starts
+from 09 June 2003, I start the data from the very date and as it is
+weekly I set the frequency of the Time Series to be 52.
+
+```{r}
+fuel_data_ts<-ts(fuel_data$Price,start=c(2003,06,09),frequency=52)
+```
+
+As the time series "fuel_data_ts" has been defined, now I decompose the
+time series to see how it performs.
+
+```{r}
+plot(decompose(fuel_data_ts))
+```
+
+We can see that the additive model has been fitted in the Time Series.
+We can depict that the fuel price has an overall of increasing trend
+across the time frame.It is also noticeable that the trend is more
+volatile after 2017. We can also see that the noise has increased over
+the recent years from 2022. This indicates unpredictable shocks in
+recent years, which can also be explained because of the energy crisis
+in the UK. Overall, especially in the first few years, the data doesn't
+look very noisy. The seasonality suggests that the changes in fuel
+prices have been repeated clearly and consistently at regular interval
+over time. The peak suggests that the petrol price increases at certain
+times of year, which might be linked to seasonal demand changes.
+
+*Note: I have only used the fuel_data_ts here as it is transformed into
+Time Series data type in R, in the other sections, i will be using the
+petrol_price data frame which I particularly defined for prophet, as it
+has the recorded date from the dataset for consistency and accuracy.*
+
+### 2.3 Fitting Linear Trend Function to the Time Series
+
+I, now, will run a linear regression which will help me gain
+understanding of the growth of the petrol prices in the UK. Here, I will
+use the **lm** function.
+
+```{r}
+plot(petrol_price$ds,petrol_price$y, type='l', xlab='Year', ylab='Price of Petrol', main='')
+Linearmodel_fuel=lm(petrol_price$y~petrol_price$ds,petrol_price)
+lines(petrol_price$ds,fitted(Linearmodel_fuel), type="l", col='red')
+```
+
+The trend line suggests an upward trend in the fuel price data. It also
+suggests volatile fluctuations in the prices which peaks around
+2020-2022.
+
+```{r}
+summary(Linearmodel_fuel)
+```
+
+It is evident that the Residual Standard Error is 14.02, which means
+that the model is in average 14.02 pence off while using this to predict
+the fuel price. The multiple R squared value of 60.16% suggests that the
+60.16% of variability in the petrol prices can be explained by the time
+in this model.
+
+## 3. Using Prophet to Model the Petrol Prices
+
+In this chapter, I use prophet to fit the petrol prices, and forecast
+the future petrol prices in the UK.
+
+### 3.1 Fitting the Data into Prophet Model
+
+Now, I will fit the data frame (petrol.prices) into prophet to analyse
+the data. This prophet function is used to fit the model. I won't use
+daily and weekly seasonality as this data has been recorded weekly, as
+it won't have clear predictions for each day of the week.
+
+```{r}
+model_price=prophet::prophet(petrol_price,weekly.seasonality = FALSE)
+```
+
+The prophet model is an additive model with components such as trend,
+seasonality, holidays and error terms.
+
+### 3.2 Future Price Data Frame Setup
+
+Now that the model has been fitted using the prophet function, the
+predictions are made on the dataframe, using the funtion
+**make_future_dataframe**, this function takes the model object and a
+number of periods to forecast to provide a suitable dataframe of the
+dates.
+
+```{r}
+future_price<-make_future_dataframe(model_price,periods=52,freq="week")
+tail(future_price)
+```
+
+As, this project is based on a weekly dataset, the future predictions
+are based will also be on weekly forecast for better accuracy, so I have
+set the frequency to week. Here, the data frame is set such that it is
+ready to forecast fuel prices weekly up-to a year.
+
+### 3.3 Forecasting the Future Prices
+
+As the new data frame has been defined in chapter 3.2, here I will use
+the dataframe defined to make future predictions of petrol prices. For
+this I will use the function **predict**. This function is responsible
+to make predictions from the results of different model fitting
+functions.
+
+```{r}
+predict_futureprice=predict(model_price,future_price)
+tail(predict_futureprice[c('ds','yhat','yhat_lower','yhat_upper')])
+```
+
+The table above contains the predictions of the future petrol prices
+weekly ranging from February 5,2025 to March 10, 2025, which is exactly
+like a year far from now. It has the price predictions with their
+associated confidence intervals, where **yhat_lower** represents the
+lower bound of the confidence interval whereas **yhat_upper** represents
+the upper bound, and **yhat** represents the forecasted price of petrol.
+The predictions during this specific time (form Feb 2025 to March) seem
+to vary between 164.84p/litre to 167.31p/litre, and it is also
+noticeable that the price has an increasing trend with time constraint.
+
+### 3.4 Visualising the Forecast
+
+Now, the forecast made in section 3.3 can be visualised using Dygraphs,
+which is an interactive plot of the future predictions.
+
+```{r}
+library(dygraphs)
+dyplot.prophet(model_price,predict_futureprice)
+```
+
+In the graph above, the X-axis denotes time in years, whereas the Y-
+axis denotes the petrol prices per litre in pence. It is evident that
+Prophet has been able to explain the variability in the data most of the
+time, as the actual data points mostly fall within the confidence
+interval bounds of predicted petrol prices. But, in some instances such
+as in extreme values, the model wasn't able to explain the variations.
+These extreme values are generally cause by external factors, for
+instance, the petrol prices in 2022 was heavily impacted because of the
+Russia Ukraine war - which caused major energy crisis in the United
+Kingdom, leading to the rapid acceleration in the price of petrol. The
+model also predicts that the prices of petrol will not reach towards its
+all time maximum in 2022 in the upcoming year.
+
+### 3.5 Further Examinations
+
+To further examine the petrol price, I will use the function
+**prophet_plot_components**, which is responsible to plot the components
+of prophet forecast which include: trend, holidays, weekly seasonality
+and yearly seasonality and others. We will use this function to see the
+forecasted petrol prices into trend, weekly seasonality and yearly
+seasonality.
+
+```{r}
+prophet_plot_components(model_price,predict_futureprice)
+```
+
+The trend forecasted by the Prophet forecasting tool shows that the
+petrol prices grow at a linear rate from 2020 to 2025. It also suggests
+that the rate of growth from 2020 to 2025 is higher than the growth rate
+from 2015 to 2020. The data overall has a linear growth except for the
+time period from 2010 to 2016, the trend here more looks quadratic with
+a local maxima of 125p in between 2012 and 2013.
+
+The yearly seasonality data suggests that the prices are usually higher
+usually from May to November. This suggests that the fuel prices
+typically increase during summer, which is logical, as people more often
+travel during this time, especially with holidays and road trips during
+these months, which tend to increase the demand of petrol, which results
+in increasing price of petrol.
+
+## 4. Conclusion
+
+This project has utilised Prophet to analyse and forecast the Petrol
+Prices in the UK, which revealed a general upward trend through years.
+The forecast indicates a continued rise in petrol prices over the next
+year. It also shows the particular higher prices in fuel throughout the
+summer as anticipated.
+
+Even though, the model captures the overall trends and seasonality,
+incorporating other economic and external factors would definitely
+enhance the accuracy. This analysis will generally help assists the
+stakeholders in planning and decision-making with the fluctuating fuel
+costs.
